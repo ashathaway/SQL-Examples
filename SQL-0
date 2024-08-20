@@ -1,0 +1,67 @@
+1.
+select mgr, count(empno)
+from emp, dept
+where emp.deptno=dept.deptno 
+group  by mgr 
+having count(empno)>1
+
+2.
+select O.PRODUCTID, PRODUCTSTANDARDPRICE, PRODUCTSTANDARDPRICE* case when ORDEREDQUANTITY >1 then ORDEREDQUANTITY else 1 end "Total Price"
+from product_t P, orderline_t O
+where P.productid=O.productid and O.orderid=1001 
+
+3.
+A.	
+select tweetuser
+from tw_tweet
+where  tweetuser =
+    (select tweetuser, count(tweetid)
+    from tw_tweet
+    group by tweetuser
+    having count(tweetid)=0)
+
+B.	 
+select name
+from tw_user, tw_tweet
+where userid=tweetuser and lower(tweetcontent) like '%new%'
+
+C.	 
+select count(followerid)
+from tw_follow F, tw_user U 
+where F.userid=U.userid
+group by name
+having name='Emma'
+
+D.	 
+select state, count(tweetid) as totalcount
+from tw_user, tw_tweet 
+where userid=tweetuser
+group by state
+having count(tweetid)>2
+
+E.	 
+select name
+from tw_user
+where age < any
+(select age
+from tw_user
+where state='MN')
+
+F.	 
+select name, age
+from tw_user U
+where age > 
+(select avg(age)
+from tw_user T
+where T.state=U.state)
+
+G.	 
+select distinct T.tweetuser
+from tw_tweet T, tw_tweet O
+where T.tweetid=O.otid
+
+select distinct tweetuser
+from tw_tweet 
+where tweetid= any
+(select otid 
+from tw_tweet)
