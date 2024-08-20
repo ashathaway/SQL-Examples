@@ -1,0 +1,117 @@
+SET hive.exec.dynamic.partition = true;
+SET hive.exec.dynamic.partition.mode = nonstrict;
+SET hive.exec.max.dynamic.partitions.pernode = 1500;
+
+create table if not exists nyc_taxi_part_day
+(vendor_id string,
+pickup_datetime timestamp,
+dropoff_datetime timestamp,
+passenger_count int,
+trip_distance double,
+pickup_longitude double, 
+pickup_latitude double,
+rate_code int,
+store_and_fwd_flag string,
+drop_off_longitude double,
+dropoff_latitude double,
+payment_type string,
+fare_amount double,
+surcharge double,
+mta_tax double,
+tip_amount double,
+tolls_amount double,
+total_amount double)
+PARTITIONED BY (pickup_day int)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE;
+
+INSERT into TABLE nyc_taxi_part_day partition (pickup_day)
+SELECT *, day(pickup_datetime) as pickup_day FROM nyc_taxi;
+
+create table if not exists nyc_taxi_part_day_hour
+(vendor_id string,
+pickup_datetime timestamp,
+dropoff_datetime timestamp,
+passenger_count int,
+trip_distance double,
+pickup_longitude double, 
+pickup_latitude double,
+rate_code int,
+store_and_fwd_flag string,
+drop_off_longitude double,
+dropoff_latitude double,
+payment_type string,
+fare_amount double,
+surcharge double,
+mta_tax double,
+tip_amount double,
+tolls_amount double,
+total_amount double)
+PARTITIONED BY (pickup_day int, pickup_hour int)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE;
+
+INSERT into TABLE nyc_taxi_part_day_hour partition (pickup_day, pickup_hour)
+SELECT *, day(pickup_datetime) as pickup_day, hour(pickup_datetime) as pickup_hour FROM nyc_taxi;
+
+select pickup_day, pickup_hour, count(*) as day_hour_count
+from nyc_taxi_part_day_hour
+group by pickup_day, pickup_hour
+
+select pickup_day, pickup_hour, count(*) as day_hour_count
+from nyc_taxi_part_day_hour
+group by pickup_day, pickup_hour
+order by day_hour_count desc 
+limit 5
+
+drop table nyc_taxi;
+create table nyc_taxi
+(vendor_id string,
+pickup_datetime timestamp,
+dropoff_datetime timestamp,
+passenger_count int,
+trip_distance double,
+pickup_longitude double, 
+pickup_latitude double,
+rate_code int,
+store_and_fwd_flag string,
+drop_off_longitude double,
+dropoff_latitude double,
+payment_type string,
+fare_amount double,
+surcharge double,
+mta_tax double,
+tip_amount double,
+tolls_amount double,
+total_amount double)
+using csv
+location '/FileStore/tables/nyc_taxi.csv'
+options("header"="true");
+
+%r library(SparkR)
+%r sql("use ahathawy")
+nyc_taxi_3day <- sql("SELECT *, day(pickup_datetime) AS pickup_day FROM nyc_taxi where day(pickup_datetime)<=10")
+nrow(nyc_taxi_3day)
+
+%r sql("use ahathawy")
+nyc_taxi_Aug1 <- filter(nyc_taxi_3day, month(nyc_taxi_3day$pickup_datetime)==8 & nyc_taxi_3day$pickup_day==1 & hour(nyc_taxi_3day$pickup_datetime)>=10 & hour(nyc_taxi_3day$pickup_datetime)<11)
+showDF(nyc_taxi_Aug1, 25)
+
+%r sql("use ahathawy")
+taxi_sdf <- sql("select * from nyc_taxi")
+taxi_revenue_sdf <-agg(groupBy(taxi_sdf, dayofmonth(taxi_sdf$pickup_datetime)), total_amount = "sum") 
+
+%r taxi_revenue_rdf <- collect(taxi_revenue_sdf)
+
+%r taxi_revenue_rdf
+
+%r library(ggplot2)
+
+%r colnames(taxi_revenue_rdf)[1] = "Day"
+colnames(taxi_revenue_rdf)[2] = "Revenue"
+
+%r qplot(taxi_revenue_rdf$Day, taxi_revenue_rdf$Revenue, geom="line", xlab="Day of the Month", ylab="Revenue")
