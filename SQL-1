@@ -1,0 +1,43 @@
+create table nyc_taxi2
+(vendor_id string,
+pickup_datetime timestamp,
+dropoff_datetime timestamp,
+passenger_count int,
+trip_distance double,
+pickup_longitude double, 
+pickup_latitude double,
+rate_code int,
+store_and_fwd_flag string,
+drop_off_longitude double,
+dropoff_latitude double,
+payment_type string,
+fare_amount double,
+surcharge double,
+mta_tax double,
+tip_amount double,
+tolls_amount double,
+total_amount double)
+using csv
+location '/FileStore/tables/nyc_taxi.csv'
+options("header"="true");
+
+select date_format(pickup_datetime, 'yyyy.MM.dd') as Date, trip_distance as Distance, total_amount as Fare
+from nyc_taxi2
+order by Distance desc
+limit 30
+
+select hour(pickup_datetime) as Time, sum(passenger_count) as Passengers
+from nyc_taxi2
+where pickup_latitude between 40.766703 and 40.774724 and pickup_longitude between -73.877101 and -73.859692
+group by hour(pickup_datetime)
+order by hour(pickup_datetime)
+
+analyze table nyc_taxi2 compute statistics for columns passenger_count
+
+describe formatted nyc_taxi2 passenger_count
+
+select count(*) as trips_total, payment_type
+from nyc_taxi2 
+group by payment_type
+having count(*)>20000
+order by trips_total desc
