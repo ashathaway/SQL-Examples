@@ -1,0 +1,60 @@
+library(SparkR)
+sql("use ahathawy")
+nyc_taxi_df <- sql("SELECT * FROM nyc_taxi where day(pickup_datetime)=1 and month(pickup_datetime)=8 and hour(pickup_datetime)>=10 and hour(pickup_datetime)<=11")
+day1_training <- filter(nyc_taxi_df, nyc_taxi_df$payment_type=="CSH" | nyc_taxi_df$payment_type=="CRD")
+
+nyc_taxi_df2 <- sql("SELECT * FROM nyc_taxi where day(pickup_datetime)=2 and month(pickup_datetime)=8 and hour(pickup_datetime)>=10 and hour(pickup_datetime)<=11")
+day2_testing <- filter(nyc_taxi_df2, nyc_taxi_df2$payment_type=="CSH" | nyc_taxi_df2$payment_type=="CRD")
+
+day1_training <- dropna(day1_training)
+day2_testing <- dropna(day2_testing)
+nrow(day1_training)
+
+nrow(day2_testing)
+
+model_log <- spark.logit(day1_training,
+payment_type ~ passenger_count + trip_distance + pickup_longitude + pickup_latitude + drop_off_longitude + dropoff_latitude + fare_amount,
+regParam = 0.1,
+elasticNetParam=0,
+family = "auto",
+thresholds = 0.5,
+handleInvalid = "skip")
+
+summary(model_log)
+
+outputLR <- predict(model_log, day2_testing)
+showDF(outputLR, 20)
+
+correct <- nrow(where(outputLR, outputLR$payment_type == outputLR$prediction))
+total <- nrow(outputLR)
+accuracy = correct/total
+accuracy
+
+TP <- nrow(where(outputLR, outputLR$payment_type == "CRD" & outputLR$prediction == "CRD"))
+FP <- nrow(where(outputLR, outputLR$payment_type == "CSH" & outputLR$prediction == "CRD"))
+precision = TP/(TP+FP)
+precision
+
+FN <- nrow(where(outputLR, outputLR$payment_type == "CRD" & outputLR$prediction == "CSH"))
+recall = TP/(TP+FN)
+recall
+
+F1 <- 2*(precision*recall/precision+recall)
+F1
+
+model_rf <- spark.randomForest(day1_training, tip_amount ~ passenger_count + fare_amount + pickup_longitude + pickup_latitude +
+dropoff_latitude + drop_off_longitude + payment_type, "regression", numTrees = 20, maxDepth = 5, handleInvalid = "skip")
+summary(model_rf)
+
+
+output_rf <- predict(model_rf, day2_testing)
+showDF(output_rf, 20)
+
+
+mse <- showDF(select(output_rf, avg((output_rf$tip_amount-output_rf$prediction)^2)))
+
+rmse <- showDF(select(output_rf,sqrt(avg((output_rf$tip_amount-output_rf$prediction)^2))))
+
+mae <- showDF(select(output_rf, avg(abs(output_rf$tip_amount-output_rf$prediction))))
+
+mape <- showDF(select(output_rf, avg(abs(output_rf$tip_amount- output_rf$prediction)/abs(output_rf$tip_amount))))
